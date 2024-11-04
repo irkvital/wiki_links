@@ -8,6 +8,8 @@ public class WikiLinksApplication {
 
 	public static void main(String[] args) {
 		SpringApplication.run(WikiLinksApplication.class, args);
+		WikiData wiki = new WikiData();
+		System.out.println("End");
 	}
 
 }
