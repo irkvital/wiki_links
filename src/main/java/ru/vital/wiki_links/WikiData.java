@@ -18,21 +18,22 @@ import javax.net.ssl.HttpsURLConnection;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
+
 public class WikiData {
-    private String fileLinksProcessed = "linksProcessed.ser";
+    private String fileLinksForProcessing = "linksForProcessing.ser";
     private String fileAllWikiLinks = "allWikiLinks.ser";
 
-    private Set<String> linksProcessed;
+    private Set<String> linksForProcessing;
     private Map<String, Set<String>> allWikiLinks;
 
     @SuppressWarnings("unchecked")
     public WikiData() {
         try {
-            FileInputStream fis = new FileInputStream(fileLinksProcessed);
+            FileInputStream fis = new FileInputStream(fileLinksForProcessing);
             ObjectInputStream os = new ObjectInputStream(fis);
-            linksProcessed = (HashSet<String>) os.readObject();
+            linksForProcessing = (HashSet<String>) os.readObject();
         } catch (Exception e) {
-            linksProcessed = new HashSet<>();
+            linksForProcessing = new HashSet<>();
         }
 
         try {
@@ -41,15 +42,21 @@ public class WikiData {
             allWikiLinks = (HashMap<String, Set<String>>) os.readObject();
         } catch (Exception e) {
             allWikiLinks = new HashMap<String, Set<String>>();
-            try {
-                allWikiLinks.put("Приветствие", takeLinksfromPage("Приветствие"));
-            } catch (Exception e1) {
-                e1.printStackTrace();
-            }
+            linkProcessing("Приветствие");
         }
     }
 
-    Set<String> takeLinksfromPage(String page) throws Exception {
+    private void linkProcessing(String page) {
+        try {
+            Set<String> result = takeLinksfromPage(page);
+            allWikiLinks.put(page, result);
+            linksForProcessing.addAll(result);
+        } catch (Exception e1) {
+            e1.printStackTrace();
+        }
+    }
+
+    private Set<String> takeLinksfromPage(String page) throws Exception {
         String prefix = "https://ru.wikipedia.org/w/api.php?action=parse&page=";
         String postfix = "&format=json&prop=links";
         Set<String> out = new HashSet<>();
@@ -76,7 +83,7 @@ public class WikiData {
             ObjectMapper om = new ObjectMapper();
             JsonNode jsonArray = om.readTree(response.toString()).get("parse").get("links");
             for (JsonNode jsonNode : jsonArray) {
-                out.add(jsonNode.get("*").toString());
+                out.add(jsonNode.get("*").asText());
             }
 
         return out;
