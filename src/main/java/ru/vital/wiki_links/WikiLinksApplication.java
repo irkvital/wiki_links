@@ -9,8 +9,9 @@ public class WikiLinksApplication {
 	public static void main(String[] args) {
 		SpringApplication.run(WikiLinksApplication.class, args);
 		WikiData wiki = new WikiData();
-		wiki.start(100);
+		// wiki.start(1000);
+		wiki.startThreads(1000, 5);
+		wiki.saveData();
 		System.out.println("End");
 	}
-
 }

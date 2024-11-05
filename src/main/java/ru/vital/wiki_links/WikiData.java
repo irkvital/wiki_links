@@ -1,6 +1,9 @@
 package ru.vital.wiki_links;
 
+import java.io.BufferedInputStream;
+import java.io.BufferedOutputStream;
 import java.io.BufferedReader;
+import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.InputStream;
@@ -10,14 +13,19 @@ import java.io.ObjectOutputStream;
 import java.io.UnsupportedEncodingException;
 import java.net.URI;
 import java.net.URL;
-import java.util.HashMap;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.HexFormat;
-import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.Map;
 import java.util.Queue;
 import java.util.Set;
+import java.util.concurrent.Callable;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+
 import javax.net.ssl.HttpsURLConnection;
 
 import com.fasterxml.jackson.databind.JsonNode;
@@ -25,9 +33,10 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 
 
 public class WikiData {
-    private String fileLinksForProcessing = "linksForProcessing.ser";
-    private String fileAllWikiLinks = "allWikiLinks.ser";
-    private String fileBadLinks = "badLinks.ser";
+    private String directory = "./data/";
+    private String fileLinksForProcessing = directory + "linksForProcessing.ser";
+    private String fileAllWikiLinks = directory + "allWikiLinks.ser";
+    private String fileBadLinks = directory + "badLinks.ser";
 
     private Queue<String> linksForProcessing;
     private Map<String, Set<String>> allWikiLinks;
@@ -35,34 +44,69 @@ public class WikiData {
 
     @SuppressWarnings("unchecked")
     public WikiData() {
-        try (FileInputStream fis = new FileInputStream(fileLinksForProcessing)) {
+        try (BufferedInputStream fis = new BufferedInputStream(new FileInputStream(fileLinksForProcessing))) {
             ObjectInputStream os = new ObjectInputStream(fis);
             linksForProcessing = (Queue<String>) os.readObject();
+            System.out.println("linksForProcessing opened");
         } catch (Exception e) {
             linksForProcessing = new LinkedList<>();
+            System.out.println("linksForProcessing created");
         }
 
-        try (FileInputStream fis = new FileInputStream(fileBadLinks)) {
+        try (BufferedInputStream fis = new BufferedInputStream(new FileInputStream(fileBadLinks))) {
             ObjectInputStream os = new ObjectInputStream(fis);
-            badLinks = (Set<String>) os.readObject();
+            badLinks = Collections.synchronizedSet((HashSet<String>) os.readObject());
+            System.out.println("fileBadLinks opened");
         } catch (Exception e) {
-            badLinks = new HashSet<>();
+            badLinks = Collections.synchronizedSet(new HashSet<>());
+            System.out.println("fileBadLinks created");
         }
 
-        try (FileInputStream fis = new FileInputStream(fileAllWikiLinks);) {
+        try (BufferedInputStream fis = new BufferedInputStream(new FileInputStream(fileAllWikiLinks));) {
             ObjectInputStream os = new ObjectInputStream(fis);
-            allWikiLinks = (HashMap<String, Set<String>>) os.readObject();
+            allWikiLinks = (ConcurrentHashMap<String, Set<String>>) os.readObject();
+            System.out.println("fileAllWikiLinks opened");
         } catch (Exception e) {
-            allWikiLinks = new HashMap<String, Set<String>>();
+            allWikiLinks = new ConcurrentHashMap<String, Set<String>>();
             linkProcessing("Приветствие");
+            System.out.println("fileAllWikiLinks created");
+        }
+    }
+
+    public void saveData() {
+        if (new File(directory).mkdir()) {
+            System.out.println("Создана директория с данными");
+        }
+        
+        try (BufferedOutputStream fis = new BufferedOutputStream(new FileOutputStream(fileLinksForProcessing))) {
+            ObjectOutputStream os = new ObjectOutputStream(fis);
+            os.writeObject(linksForProcessing);
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+
+        try (BufferedOutputStream fis = new BufferedOutputStream(new FileOutputStream(fileBadLinks))) {
+            ObjectOutputStream os = new ObjectOutputStream(fis);
+            os.writeObject(badLinks);
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+
+        try (BufferedOutputStream fis = new BufferedOutputStream(new FileOutputStream(fileAllWikiLinks))) {
+            ObjectOutputStream os = new ObjectOutputStream(fis);
+            os.writeObject(allWikiLinks);
+        } catch (Exception e) {
+            e.printStackTrace();
         }
     }
 
     public void start(int count) {
         String page = linksForProcessing.poll();
-        while (count > 0 && page != null) {
-            count--;
-            System.out.println(count + "  Открыли " + page);
+        for (int i = 0; i < count && page != null; i++) {
+            while (allWikiLinks.containsKey(page) && page != null) {
+                page = linksForProcessing.poll();
+            }
+            System.out.println(i + "  Открыли " + page);
             if (linkProcessing(page)) {
                 System.out.println("Обработали и удалили " + page);
             } else {
@@ -72,18 +116,61 @@ public class WikiData {
         }
     }
 
+    public void startThreads(int count, int threadsNum) {
+        ExecutorService executor = Executors.newFixedThreadPool(threadsNum);
+
+        String page = linksForProcessing.poll();
+        @SuppressWarnings("unchecked")
+        Future<Boolean>[] future = new Future[count];
+        int i = 0;
+        int j = 0;
+
+        while (i < count && page != null) {
+            for (j = i; j < count && page != null; j++) {
+                // Проверка на повторное открытие ссылки
+                synchronized(linksForProcessing) {
+                    while (allWikiLinks.containsKey(page) && page != null) {
+                        page = linksForProcessing.poll();
+                    }
+                    synchronized(badLinks) {
+                        while (badLinks.contains(page) && page != null) {
+                            page = linksForProcessing.poll();
+                        }
+                    }
+                }
+
+                future[j] = executor.submit(new Task(page));
+                synchronized(linksForProcessing) {
+                    page = linksForProcessing.poll();
+                }
+            }
+    
+            for (; i < j; i++) {
+                try {
+                    System.out.println(i + "  " + future[i].get());
+                } catch (Exception e) {
+                    e.printStackTrace();
+                }
+            }
+            page = linksForProcessing.poll();
+            System.out.println("END CIRCLE");
+        }
+        executor.shutdown();
+    }
+
     // false - error, true - OK
     private boolean linkProcessing(String page) {
         try {
             Set<String> result = takeLinksfromPage(page);
             allWikiLinks.put(page, result);
-            // Добавляем элемент, если такого нет в очереди
-            for (String element : result) {
-                if (!linksForProcessing.contains(element)) {
-                    linksForProcessing.add(element);
+            // Добавляем элемент
+            synchronized(linksForProcessing) {
+                for (String element : result) {
+                    if (!allWikiLinks.containsKey(element)) {
+                        linksForProcessing.add(element);
+                    }
                 }
             }
-
         } catch (Exception e1) {
             // e1.printStackTrace();
             badLinks.add(page);
@@ -95,7 +182,7 @@ public class WikiData {
     private Set<String> takeLinksfromPage(String page) throws Exception {
         String prefix = "https://ru.wikipedia.org/w/api.php?action=parse&page=";
         String postfix = "&format=json&prop=links";
-        Set<String> out = new HashSet<>();
+        Set<String> out = Collections.synchronizedSet(new HashSet<>());
 
             String hexPage = toHex(page);
             StringBuilder response = new StringBuilder();
@@ -131,6 +218,19 @@ public class WikiData {
         String strHex = commaFormat.formatHex(bytes);
 
         return strHex.replaceAll("%20", "_").toUpperCase();
+    }
+
+    private class Task implements Callable<Boolean> {
+        private String page;
+
+        Task(String page) {
+            this.page = page;
+        }
+
+        @Override
+        public Boolean call() {
+            return linkProcessing(page);
+        }
     }
 
 }
