@@ -10,6 +10,7 @@ public class WikiLinksApplication {
 		SpringApplication.run(WikiLinksApplication.class, args);
 		WikiData wiki = new WikiData();
 		wiki.start(100);
+		wiki.saveData();
 		System.out.println("End");
 	}
 

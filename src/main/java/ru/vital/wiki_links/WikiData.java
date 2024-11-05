@@ -1,6 +1,7 @@
 package ru.vital.wiki_links;
 
 import java.io.BufferedReader;
+import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.InputStream;
@@ -13,7 +14,6 @@ import java.net.URL;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.HexFormat;
-import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.Map;
 import java.util.Queue;
@@ -25,9 +25,10 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 
 
 public class WikiData {
-    private String fileLinksForProcessing = "linksForProcessing.ser";
-    private String fileAllWikiLinks = "allWikiLinks.ser";
-    private String fileBadLinks = "badLinks.ser";
+    private String directory = "./data/";
+    private String fileLinksForProcessing = directory + "linksForProcessing.ser";
+    private String fileAllWikiLinks = directory + "allWikiLinks.ser";
+    private String fileBadLinks = directory + "badLinks.ser";
 
     private Queue<String> linksForProcessing;
     private Map<String, Set<String>> allWikiLinks;
@@ -55,6 +56,33 @@ public class WikiData {
         } catch (Exception e) {
             allWikiLinks = new HashMap<String, Set<String>>();
             linkProcessing("Приветствие");
+        }
+    }
+
+    public void saveData() {
+        if (new File(directory).mkdir()) {
+            System.out.println("Создана директория с данными");
+        }
+        
+        try (FileOutputStream fis = new FileOutputStream(fileLinksForProcessing)) {
+            ObjectOutputStream os = new ObjectOutputStream(fis);
+            os.writeObject(linksForProcessing);
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+
+        try (FileOutputStream fis = new FileOutputStream(fileBadLinks)) {
+            ObjectOutputStream os = new ObjectOutputStream(fis);
+            os.writeObject(badLinks);
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+
+        try (FileOutputStream fis = new FileOutputStream(fileAllWikiLinks)) {
+            ObjectOutputStream os = new ObjectOutputStream(fis);
+            os.writeObject(allWikiLinks);
+        } catch (Exception e) {
+            e.printStackTrace();
         }
     }
 
