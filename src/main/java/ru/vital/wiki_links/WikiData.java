@@ -2,16 +2,21 @@ package ru.vital.wiki_links;
 
 import java.io.BufferedReader;
 import java.io.FileInputStream;
+import java.io.FileOutputStream;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.ObjectInputStream;
+import java.io.ObjectOutputStream;
 import java.io.UnsupportedEncodingException;
 import java.net.URI;
 import java.net.URL;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.HexFormat;
+import java.util.Iterator;
+import java.util.LinkedList;
 import java.util.Map;
+import java.util.Queue;
 import java.util.Set;
 import javax.net.ssl.HttpsURLConnection;
 
@@ -22,22 +27,29 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 public class WikiData {
     private String fileLinksForProcessing = "linksForProcessing.ser";
     private String fileAllWikiLinks = "allWikiLinks.ser";
+    private String fileBadLinks = "badLinks.ser";
 
-    private Set<String> linksForProcessing;
+    private Queue<String> linksForProcessing;
     private Map<String, Set<String>> allWikiLinks;
+    private Set<String> badLinks;
 
     @SuppressWarnings("unchecked")
     public WikiData() {
-        try {
-            FileInputStream fis = new FileInputStream(fileLinksForProcessing);
+        try (FileInputStream fis = new FileInputStream(fileLinksForProcessing)) {
             ObjectInputStream os = new ObjectInputStream(fis);
-            linksForProcessing = (HashSet<String>) os.readObject();
+            linksForProcessing = (Queue<String>) os.readObject();
         } catch (Exception e) {
-            linksForProcessing = new HashSet<>();
+            linksForProcessing = new LinkedList<>();
         }
 
-        try {
-            FileInputStream fis = new FileInputStream(fileAllWikiLinks);
+        try (FileInputStream fis = new FileInputStream(fileBadLinks)) {
+            ObjectInputStream os = new ObjectInputStream(fis);
+            badLinks = (Set<String>) os.readObject();
+        } catch (Exception e) {
+            badLinks = new HashSet<>();
+        }
+
+        try (FileInputStream fis = new FileInputStream(fileAllWikiLinks);) {
             ObjectInputStream os = new ObjectInputStream(fis);
             allWikiLinks = (HashMap<String, Set<String>>) os.readObject();
         } catch (Exception e) {
@@ -46,14 +58,38 @@ public class WikiData {
         }
     }
 
-    private void linkProcessing(String page) {
+    public void start(int count) {
+        String page = linksForProcessing.poll();
+        while (count > 0 && page != null) {
+            count--;
+            System.out.println(count + "  Открыли " + page);
+            if (linkProcessing(page)) {
+                System.out.println("Обработали и удалили " + page);
+            } else {
+                System.out.println("Не обработали ссылку " + page);
+            }
+            page = linksForProcessing.poll();
+        }
+    }
+
+    // false - error, true - OK
+    private boolean linkProcessing(String page) {
         try {
             Set<String> result = takeLinksfromPage(page);
             allWikiLinks.put(page, result);
-            linksForProcessing.addAll(result);
+            // Добавляем элемент, если такого нет в очереди
+            for (String element : result) {
+                if (!linksForProcessing.contains(element)) {
+                    linksForProcessing.add(element);
+                }
+            }
+
         } catch (Exception e1) {
-            e1.printStackTrace();
+            // e1.printStackTrace();
+            badLinks.add(page);
+            return false;
         }
+        return true;
     }
 
     private Set<String> takeLinksfromPage(String page) throws Exception {

@@ -9,6 +9,7 @@ public class WikiLinksApplication {
 	public static void main(String[] args) {
 		SpringApplication.run(WikiLinksApplication.class, args);
 		WikiData wiki = new WikiData();
+		wiki.start(100);
 		System.out.println("End");
 	}
 
