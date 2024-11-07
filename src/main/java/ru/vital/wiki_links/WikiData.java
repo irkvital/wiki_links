@@ -55,7 +55,7 @@ public class WikiData {
 
         try (BufferedInputStream fis = new BufferedInputStream(new FileInputStream(fileBadLinks))) {
             ObjectInputStream os = new ObjectInputStream(fis);
-            badLinks = Collections.synchronizedSet((HashSet<String>) os.readObject());
+            badLinks = Collections.synchronizedSet((Set<String>) os.readObject());
             System.out.println("fileBadLinks opened");
         } catch (Exception e) {
             badLinks = Collections.synchronizedSet(new HashSet<>());
@@ -154,6 +154,7 @@ public class WikiData {
             }
             page = linksForProcessing.poll();
             System.out.println("END CIRCLE");
+            optimizeQueue();
         }
         executor.shutdown();
     }
@@ -220,6 +221,32 @@ public class WikiData {
         return strHex.replaceAll("%20", "_").toUpperCase();
     }
 
+    public void optimizeQueue() {
+        System.out.println("Размер до    " + linksForProcessing.size());
+        Set<String> tmp = new HashSet<>();
+        
+        synchronized(linksForProcessing) {
+            String page = linksForProcessing.poll();
+            while (page != null) {
+                tmp.add(page);
+                page = linksForProcessing.poll();
+            }
+            
+            for (String string : tmp) {
+                if (!allWikiLinks.containsKey(string) && !badLinks.contains(string)) {
+                    linksForProcessing.add(string);
+                }
+            }
+        }
+        System.out.println("Размер после " + linksForProcessing.size());
+    }
+
+    public void info() {
+        System.out.println("Обработанных ссылок: " + allWikiLinks.size());
+        System.out.println("Bad ссылок: " + badLinks.size());
+        System.out.println("В очереди ссылок: " + linksForProcessing.size());
+    }
+
     private class Task implements Callable<Boolean> {
         private String page;
 
@@ -234,5 +261,3 @@ public class WikiData {
     }
 
 }
-
-// https://ru.wikipedia.org/w/api.php?action=parse&page=Приветствие&format=json&prop=links
