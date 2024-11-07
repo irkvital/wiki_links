@@ -186,7 +186,6 @@ public class WikiData {
         Set<String> out = Collections.synchronizedSet(new HashSet<>());
 
             String hexPage = toHex(page);
-            StringBuilder response = new StringBuilder();
             URL url = URI.create(prefix + hexPage + postfix).toURL();
             HttpsURLConnection conn = (HttpsURLConnection) url.openConnection();
             conn.setRequestMethod("GET");
@@ -195,17 +194,11 @@ public class WikiData {
                 System.err.println("Code " + respCode);
                 return out;
             }
-            // Обработка запроса
             InputStream inputStream = conn.getInputStream();
-            BufferedReader reader = new BufferedReader(new InputStreamReader(inputStream));
-            String line;
-            while ((line = reader.readLine()) != null) {
-                response.append(line);
-            }
-            reader.close();
+
             // Получение ссылок из данных
             ObjectMapper om = new ObjectMapper();
-            JsonNode jsonArray = om.readTree(response.toString()).get("parse").get("links");
+            JsonNode jsonArray = om.readTree(inputStream).get("parse").get("links");
             for (JsonNode jsonNode : jsonArray) {
                 out.add(jsonNode.get("*").asText());
             }
