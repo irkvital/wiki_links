@@ -9,10 +9,8 @@ import java.io.IOException;
 import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
 import java.io.Serializable;
-import java.io.UnsupportedEncodingException;
 import java.net.URL;
 import java.util.ArrayList;
-import java.util.HexFormat;
 import java.util.List;
 
 import com.fasterxml.jackson.databind.JsonNode;
@@ -22,7 +20,7 @@ public class WikiAllLinks implements Serializable {
     private static String directory = "./data/";
     private static String fileAllLinks = "allLinks.ser";
     private static final File path = new File(directory + fileAllLinks);
-    private int autosave = 1000; 
+    private int autosave = 1000;
 
     private String nextLink;
     private List<String> links;
@@ -36,9 +34,9 @@ public class WikiAllLinks implements Serializable {
         try (BufferedInputStream fis = new BufferedInputStream(new FileInputStream(path));) {
             ObjectInputStream os = new ObjectInputStream(fis);
             out = (WikiAllLinks) os.readObject();
-            System.out.println("fileAllLinks opened");
+            System.out.println("Файл открыт " + fileAllLinks);
         } catch (Exception e) {
-            System.out.println("fileAllLinks did not open");
+            System.out.println("Файл будет создан " + fileAllLinks);
             out = new WikiAllLinks();
         }
         return out;
@@ -51,10 +49,10 @@ public class WikiAllLinks implements Serializable {
         try (BufferedOutputStream bos = new BufferedOutputStream(new FileOutputStream(path))) {
             ObjectOutputStream os = new ObjectOutputStream(bos);
             os.writeObject(this);
-            System.out.println("Данные сохранены");
+            System.out.println("Данные сохранены " + fileAllLinks);
         } catch (Exception e) {
             e.printStackTrace();
-            System.out.println("Данные не сохранены");
+            System.out.println("Данные не сохранены " + fileAllLinks);
         }
     }
 
@@ -63,25 +61,26 @@ public class WikiAllLinks implements Serializable {
     }
 
     public void start(int count) {
+        System.out.println("Начало формирования данных о всех статьях Wiki");
         try {
             // с условием выхода по достижению счетчика или по обходу всех ссылок
             for (int i = 0; i < count && !(nextLink == null && links.size() != 0); i++) {
                 System.out.println("Count: " + i + "  Take from link: " + nextLink);
                 links.addAll(takeLinks());
-                if (i % autosave == 0) {
+                if (i % autosave == 0 && i > 0) {
                     saveData();
                 }
             }
         } catch (Exception e) {
-            e.printStackTrace();
+            // e.printStackTrace();
+            System.out.println("Остановка формирования данных о всех статьях Wiki");
         }
         System.out.println("Numbers of links: " + links.size());
         saveData();
     }
 
-    public void start(int count, int autosave) {
-        this.autosave = autosave;
-        start(count);
+    public List<String> getData() {
+        return new ArrayList<>(links);
     }
 
     private List<String> takeLinks() throws IOException {
@@ -109,7 +108,7 @@ public class WikiAllLinks implements Serializable {
             if (this.nextLink == null) {
                 url = new URL(prefix);
             } else {
-                String hexPage = toHex(this.nextLink);
+                String hexPage = Util.toHex(this.nextLink);
                 url = new URL(prefix + postfix + hexPage);
             }
         } catch (Exception e) {
@@ -118,13 +117,8 @@ public class WikiAllLinks implements Serializable {
         return url;
     }
 
-
-    private String toHex(String str) throws UnsupportedEncodingException {
-        HexFormat commaFormat = HexFormat.ofDelimiter("").withPrefix("%");
-        byte[] bytes = str.getBytes("UTF-8");
-        String strHex = commaFormat.formatHex(bytes);
-
-        return strHex.replaceAll("%20", "_").toUpperCase();
+    public int size() {
+        return links.size();
     }
 
 }
