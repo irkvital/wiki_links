@@ -10,9 +10,8 @@ import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
 import java.io.Serializable;
 import java.net.URL;
-import java.util.ArrayList;
-import java.util.List;
-
+import java.util.HashMap;
+import java.util.Map;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
@@ -23,19 +22,21 @@ public class WikiAllLinks implements Serializable {
     private int autosave = 1000;
 
     private String nextLink;
-    private List<String> links;
+    private Map<Integer, String> links;
+    private Map<String, Integer> linksInvert = new HashMap<>();
 
     @SuppressWarnings("unchecked")
     public WikiAllLinks() {
         try (BufferedInputStream bis = new BufferedInputStream(new FileInputStream(path));) {
             ObjectInputStream os = new ObjectInputStream(bis);
             nextLink = (String) os.readObject();
-            links = (ArrayList<String>) os.readObject();
+            links = (HashMap<Integer, String>) os.readObject();
             System.out.println("Файл открыт " + fileAllLinks);
         } catch (Exception e) {
             System.out.println("Файл будет создан " + fileAllLinks);
-            links = new ArrayList<String>();
+            links = new HashMap<Integer, String>();
         }
+        linksInvert = new HashMap<>();
     }
 
     private void saveData() {
@@ -63,7 +64,7 @@ public class WikiAllLinks implements Serializable {
             // с условием выхода по достижению счетчика или по обходу всех ссылок
             for (int i = 0; i < count && !(nextLink == null && links.size() != 0); i++) {
                 System.out.println("Count: " + i + "  Take from link: " + nextLink);
-                links.addAll(takeLinks());
+                links.putAll(takeLinks());
                 if (i % autosave == 0 && i > 0) {
                     saveData();
                 }
@@ -76,12 +77,29 @@ public class WikiAllLinks implements Serializable {
         saveData();
     }
 
-    public List<String> getData() {
-        return new ArrayList<>(links);
+    public HashMap<Integer, String> getData() {
+        return new HashMap<Integer, String>(links);
     }
 
-    private List<String> takeLinks() throws IOException {
-        List<String> out = new ArrayList<>();
+    public Integer getInteger(String value) {
+        synchronized(linksInvert) {
+            if (linksInvert.size() != links.size()) {
+                System.out.println("Создана инвертированная карта");
+                linksInvert.clear();
+                for (Map.Entry<Integer,String> entry : links.entrySet()) {
+                    linksInvert.put(entry.getValue(), entry.getKey());
+                }
+            }
+        }
+        return linksInvert.get(value);
+    }
+
+    public String getString(Integer key) {
+        return links.get(key);
+    }
+
+    private Map<Integer, String> takeLinks() throws IOException {
+        Map<Integer, String> out = new HashMap<Integer, String>();
         URL url = urlCreate();
 
         ObjectMapper om = new ObjectMapper();
@@ -91,7 +109,7 @@ public class WikiAllLinks implements Serializable {
 
         jn = jn.get("query").get("allpages");
         for (JsonNode jsonNode : jn) {
-            out.add(jsonNode.get("title").asText());
+            out.put(jsonNode.get("pageid").asInt(), jsonNode.get("title").asText());
         }
         return out;
     }

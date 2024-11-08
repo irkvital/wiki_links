@@ -10,6 +10,7 @@ import java.io.ObjectOutputStream;
 import java.net.URL;
 import java.util.ArrayList;
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -18,7 +19,6 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
-
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
@@ -27,19 +27,19 @@ public class WikiData {
     private String directory = "./data/";
     private String fileMapLinks = "mapLinks.ser";
     private File path = new File(directory + fileMapLinks);
-    private int autosave = 1000;
+    private int autosave = 100;
 
-    private Map<String, Set<String>> dataMap;
+    private Map<Integer, Set<Integer>> dataMap;
     private WikiAllLinks allLinks;
 
     @SuppressWarnings("unchecked")
     public WikiData() {
         try (BufferedInputStream ois = new BufferedInputStream(new FileInputStream(path));) {
             ObjectInputStream os = new ObjectInputStream(ois);
-            dataMap = (ConcurrentHashMap<String, Set<String>>) os.readObject();
+            dataMap = (ConcurrentHashMap<Integer, Set<Integer>>) os.readObject();
             System.out.println("Файл открыт " + fileMapLinks);
         } catch (Exception e) {
-            dataMap = new ConcurrentHashMap<String, Set<String>>();
+            dataMap = new ConcurrentHashMap<Integer, Set<Integer>>();
             System.out.println("Файл будет создан " + fileMapLinks);
         }
         this.allLinks = new WikiAllLinks();
@@ -69,43 +69,58 @@ public class WikiData {
 
         // Обход сформированного списка
         ExecutorService executor = Executors.newFixedThreadPool(threadsNum);
-        List<String> links = allLinks.getData();
+        Map<Integer, String> links = allLinks.getData();
         List<Future<Boolean>> futureList = new ArrayList<>();
-        
 
-        for (String page : links) {
-            if (!dataMap.containsKey(page)) {
-                Task task = new Task(page);
-                futureList.add(executor.submit(task));
+        Iterator<Map.Entry<Integer, String>> iterator = links.entrySet().iterator();
+
+        int i = 0;
+        while (iterator.hasNext()) {
+            int count = 0;
+            while (count < autosave && iterator.hasNext()) {
+                Map.Entry<Integer, String> entry = iterator.next();
+                if (!dataMap.containsKey(entry.getKey())) {
+                    Task task = new Task(entry.getValue());
+                    futureList.add(executor.submit(task));
+                    count++;
+                }
             }
-        }
 
+            count = 0;
+            while (count < autosave && !futureList.isEmpty()) {
+                try {
+                    System.out.println("Count " + (i + count) + "  " + futureList.get(i + count).get());
+                } catch (Exception e) {
+                    e.printStackTrace();
+                }
+                count++;
+            }
+            i += count;
+            saveData();
+        }
         executor.shutdown();
-
-        for (int i = 0; i < futureList.size(); i++) {
-            if (i % autosave == 0 && i > 0) {
-                saveData();
-            }
-            try {
-                System.out.println("Count " + i + "  " + futureList.get(i).get());
-            } catch (Exception e) {
-                e.printStackTrace();
-            }
-        }
         saveData();
+
     }
 
     // false - error, true - OK
     private boolean linkProcessing(String page) {
-        Set<String> result = null;
+        Set<String> resultStr = null;
         boolean out;
         try {
-            result = takeLinksfromPage(page);
+            resultStr = takeLinksfromPage(page);
+            Set<Integer> resultInt = new HashSet<>();
+            for (String str : resultStr) {
+                Integer result = allLinks.getInteger(str);
+                if (result != null) {
+                    resultInt.add(result);
+                }
+            }
+            dataMap.put(allLinks.getInteger(page), resultInt);
             out = true;
         } catch (Exception e) {
             out = false;
         }
-        dataMap.put(page, result);
         return out;
     }
 
