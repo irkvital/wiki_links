@@ -27,14 +27,14 @@ public class WikiData {
     private String directory = "./data/";
     private String fileMapLinks = "mapLinks.ser";
     private File path = new File(directory + fileMapLinks);
-    private int autosave = 10000;
+    private int autosave = 1000;
 
     private Map<String, Set<String>> dataMap;
     private WikiAllLinks allLinks;
 
     @SuppressWarnings("unchecked")
     public WikiData() {
-        try (BufferedInputStream ois = new BufferedInputStream(new FileInputStream(fileMapLinks));) {
+        try (BufferedInputStream ois = new BufferedInputStream(new FileInputStream(path));) {
             ObjectInputStream os = new ObjectInputStream(ois);
             dataMap = (ConcurrentHashMap<String, Set<String>>) os.readObject();
             System.out.println("Файл открыт " + fileMapLinks);
@@ -52,7 +52,9 @@ public class WikiData {
 
         try (BufferedOutputStream bos = new BufferedOutputStream(new FileOutputStream(path))) {
             ObjectOutputStream os = new ObjectOutputStream(bos);
-            os.writeObject(dataMap);
+            synchronized(dataMap) {
+                os.writeObject(dataMap);
+            }
             System.out.println("Данные сохранены " + fileMapLinks + " | размер карты " + dataMap.size());
         } catch (Exception e) {
             e.printStackTrace();
@@ -63,6 +65,7 @@ public class WikiData {
     public void startThreads(int threadsNum) {
         // Формирование списка ссылок
         allLinks.start();
+        System.out.println("Обработано статей: " + dataMap.size());
 
         // Обход сформированного списка
         ExecutorService executor = Executors.newFixedThreadPool(threadsNum);
@@ -80,11 +83,11 @@ public class WikiData {
         executor.shutdown();
 
         for (int i = 0; i < futureList.size(); i++) {
+            if (i % autosave == 0 && i > 0) {
+                saveData();
+            }
             try {
                 System.out.println("Count " + i + "  " + futureList.get(i).get());
-                if (i % autosave == 0 && i > 0) {
-                    saveData();
-                }
             } catch (Exception e) {
                 e.printStackTrace();
             }
