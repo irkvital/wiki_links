@@ -42,7 +42,7 @@ public class WikiData {
             dataMap = new ConcurrentHashMap<String, Set<String>>();
             System.out.println("Файл будет создан " + fileMapLinks);
         }
-        this.allLinks = WikiAllLinks.create();
+        this.allLinks = new WikiAllLinks();
     }
 
     public void saveData() {

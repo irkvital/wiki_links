@@ -25,21 +25,17 @@ public class WikiAllLinks implements Serializable {
     private String nextLink;
     private List<String> links;
 
-    private WikiAllLinks() {
-        links = new ArrayList<String>();
-    }
-
-    public static WikiAllLinks create() {
-        WikiAllLinks out;
-        try (BufferedInputStream fis = new BufferedInputStream(new FileInputStream(path));) {
-            ObjectInputStream os = new ObjectInputStream(fis);
-            out = (WikiAllLinks) os.readObject();
+    @SuppressWarnings("unchecked")
+    public WikiAllLinks() {
+        try (BufferedInputStream bis = new BufferedInputStream(new FileInputStream(path));) {
+            ObjectInputStream os = new ObjectInputStream(bis);
+            nextLink = (String) os.readObject();
+            links = (ArrayList<String>) os.readObject();
             System.out.println("Файл открыт " + fileAllLinks);
         } catch (Exception e) {
             System.out.println("Файл будет создан " + fileAllLinks);
-            out = new WikiAllLinks();
+            links = new ArrayList<String>();
         }
-        return out;
     }
 
     private void saveData() {
@@ -48,7 +44,8 @@ public class WikiAllLinks implements Serializable {
         }
         try (BufferedOutputStream bos = new BufferedOutputStream(new FileOutputStream(path))) {
             ObjectOutputStream os = new ObjectOutputStream(bos);
-            os.writeObject(this);
+            os.writeObject(this.nextLink);
+            os.writeObject(this.links);
             System.out.println("Данные сохранены " + fileAllLinks);
         } catch (Exception e) {
             e.printStackTrace();
