@@ -8,11 +8,11 @@ import java.io.FileOutputStream;
 import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
 import java.net.URL;
-import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.Iterator;
-import java.util.List;
+import java.util.LinkedList;
 import java.util.Map;
+import java.util.Queue;
 import java.util.Set;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ConcurrentHashMap;
@@ -27,7 +27,7 @@ public class WikiData {
     private String directory = "./data/";
     private String fileMapLinks = "mapLinks.ser";
     private File path = new File(directory + fileMapLinks);
-    private int autosave = 100;
+    private int autosave = 10000;
 
     private Map<Integer, Set<Integer>> dataMap;
     private WikiAllLinks allLinks;
@@ -70,26 +70,26 @@ public class WikiData {
         // Обход сформированного списка
         ExecutorService executor = Executors.newFixedThreadPool(threadsNum);
         Map<Integer, String> links = allLinks.getData();
-        List<Future<Boolean>> futureList = new ArrayList<>();
-
+        Queue<Future<Boolean>> futureQueue = new LinkedList<>();
         Iterator<Map.Entry<Integer, String>> iterator = links.entrySet().iterator();
 
         int i = 0;
         while (iterator.hasNext()) {
+            
             int count = 0;
             while (count < autosave && iterator.hasNext()) {
                 Map.Entry<Integer, String> entry = iterator.next();
                 if (!dataMap.containsKey(entry.getKey())) {
                     Task task = new Task(entry.getValue());
-                    futureList.add(executor.submit(task));
+                    futureQueue.add(executor.submit(task));
                     count++;
                 }
             }
 
             count = 0;
-            while (count < autosave && !futureList.isEmpty()) {
+            while (!futureQueue.isEmpty()) {
                 try {
-                    System.out.println("Count " + (i + count) + "  " + futureList.get(i + count).get());
+                    System.out.println("Count " + (i + count) + "  " + futureQueue.poll().get());
                 } catch (Exception e) {
                     e.printStackTrace();
                 }
