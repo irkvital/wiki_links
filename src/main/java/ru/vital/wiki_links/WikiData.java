@@ -5,9 +5,14 @@ import java.io.BufferedOutputStream;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
+import java.io.IOException;
 import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
 import java.net.URL;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.nio.file.StandardCopyOption;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.LinkedList;
@@ -26,15 +31,18 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 public class WikiData {
     private String directory = "./data/";
     private String fileMapLinks = "mapLinks.ser";
-    private File path = new File(directory + fileMapLinks);
-    private int autosave = 10000;
+    private String fileMapLinksOld = "mapLinks_old.ser";
+    private Path path = Paths.get(directory, fileMapLinks);
+    private Path pathOld = Paths.get(directory, fileMapLinksOld);
+    private int autosave = 1000;
 
     private Map<Integer, Set<Integer>> dataMap;
     private WikiAllLinks allLinks;
 
     @SuppressWarnings("unchecked")
     public WikiData() {
-        try (BufferedInputStream ois = new BufferedInputStream(new FileInputStream(path));) {
+        this.allLinks = new WikiAllLinks();
+        try (BufferedInputStream ois = new BufferedInputStream(new FileInputStream(path.toFile()));) {
             ObjectInputStream os = new ObjectInputStream(ois);
             dataMap = (ConcurrentHashMap<Integer, Set<Integer>>) os.readObject();
             System.out.println("Файл открыт " + fileMapLinks);
@@ -42,15 +50,21 @@ public class WikiData {
             dataMap = new ConcurrentHashMap<Integer, Set<Integer>>();
             System.out.println("Файл будет создан " + fileMapLinks);
         }
-        this.allLinks = new WikiAllLinks();
     }
 
     public void saveData() {
         if (new File(directory).mkdir()) {
             System.out.println("Создана директория с данными");
         }
+        if (path.toFile().exists()) {
+            try {
+                Files.move(path, pathOld, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+        }
 
-        try (BufferedOutputStream bos = new BufferedOutputStream(new FileOutputStream(path))) {
+        try (BufferedOutputStream bos = new BufferedOutputStream(new FileOutputStream(path.toFile()))) {
             ObjectOutputStream os = new ObjectOutputStream(bos);
             synchronized(dataMap) {
                 os.writeObject(dataMap);
@@ -73,7 +87,7 @@ public class WikiData {
         Queue<Future<Boolean>> futureQueue = new LinkedList<>();
         Iterator<Map.Entry<Integer, String>> iterator = links.entrySet().iterator();
 
-        int i = 0;
+        int i = dataMap.size();
         while (iterator.hasNext()) {
             
             int count = 0;
