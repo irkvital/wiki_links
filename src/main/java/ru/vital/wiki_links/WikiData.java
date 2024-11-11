@@ -13,6 +13,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.StandardCopyOption;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.LinkedList;
@@ -34,7 +35,7 @@ public class WikiData {
     private String fileMapLinksOld = "mapLinks_old.ser";
     private Path path = Paths.get(directory, fileMapLinks);
     private Path pathOld = Paths.get(directory, fileMapLinksOld);
-    private int autosave = 1000;
+    private int autosave = 50000;
 
     private Map<Integer, Set<Integer>> dataMap;
     private WikiAllLinks allLinks;
@@ -47,6 +48,7 @@ public class WikiData {
             dataMap = (ConcurrentHashMap<Integer, Set<Integer>>) os.readObject();
             System.out.println("Файл открыт " + fileMapLinks);
         } catch (Exception e) {
+            e.printStackTrace();
             dataMap = new ConcurrentHashMap<Integer, Set<Integer>>();
             System.out.println("Файл будет создан " + fileMapLinks);
         }
@@ -168,6 +170,62 @@ public class WikiData {
     public void info() {
         System.out.println("Размер карты ссылок: " + dataMap.size());
     }
+
+    public void search (String from, String to) {
+        search(5, from, to);
+    }
+
+    public void search (int num, String from, String to) {
+        @SuppressWarnings("unchecked")
+        Map<Integer, Integer> map[] = new Map[num];
+        int fromId = allLinks.getInteger(from);
+        int toId = allLinks.getInteger(to);
+        int resultStage = -1;
+        // инициализация первой ссылки
+        map[0] = new HashMap<>();
+        for (Integer integer : dataMap.get(fromId)) {
+            map[0].put(integer, fromId);
+            if (integer.equals(toId)) {
+                resultStage = 0;
+                break;
+            }
+        }
+        // заполнение последующих итераций
+        for (int i = 1; i < num && resultStage == -1; i++) {
+            if (map[i] == null) {
+                map[i] = new HashMap<>();
+            }
+            // для каждой ссылки предыдущей ступени
+            for (Map.Entry<Integer, Integer> entry : map[i - 1].entrySet()) {
+                int fromStage = entry.getKey();
+                // формируем текущую ступень
+                for (Integer integer : dataMap.get(fromStage)) {
+                    map[i].put(integer, fromStage);
+                    if (integer.equals(toId)) {
+                        resultStage = i;
+                        break;
+                    }
+                }
+                if (resultStage != -1) {
+                    break;
+                }
+            }
+        }
+        // вывод результата
+        if (resultStage == -1) {
+            System.out.println("Решений не найдено");
+        }
+        int prevLink = toId;
+        System.out.println("Stage " + (resultStage + 1) + " | " + allLinks.getString(toId));
+        for (int i = resultStage; i > 0; i--) {
+            prevLink = map[i].get(prevLink);
+            System.out.println("Stage " + (i) + " | " + allLinks.getString(prevLink));
+        }
+        System.out.println("Start  " + " | " + allLinks.getString(fromId));
+    }
+
+
+
 
     private class Task implements Callable<Boolean> {
         private String page;
