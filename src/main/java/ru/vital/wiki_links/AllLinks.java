@@ -15,7 +15,7 @@ import java.util.Map;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
-public class WikiAllLinks implements Serializable {
+public class AllLinks implements Serializable {
     private static String directory = "./data/";
     private static String fileAllLinks = "allLinks.ser";
     private static final File path = new File(directory + fileAllLinks);
@@ -26,7 +26,7 @@ public class WikiAllLinks implements Serializable {
     private Map<String, Integer> linksInvert = new HashMap<>();
 
     @SuppressWarnings("unchecked")
-    public WikiAllLinks() {
+    public AllLinks() {
         try (BufferedInputStream bis = new BufferedInputStream(new FileInputStream(path));) {
             ObjectInputStream os = new ObjectInputStream(bis);
             nextLink = (String) os.readObject();
@@ -73,12 +73,11 @@ public class WikiAllLinks implements Serializable {
             // e.printStackTrace();
             System.out.println("Остановка формирования данных о всех статьях Wiki");
         }
-        System.out.println("Numbers of links: " + links.size());
         saveData();
     }
 
     public HashMap<Integer, String> getData() {
-        return new HashMap<Integer, String>(links);
+        return (HashMap<Integer, String>) links;
     }
 
     public Integer getInteger(String value) {
