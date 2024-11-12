@@ -12,7 +12,7 @@ public class WikiLinksApplication {
 		// wiki.startThreads(10);
 		wiki.info();
 		String from = "Пиво";
-		String to = "Гитлер";
+		String to = "Резина";
 		wiki.search(from, to);
 		System.out.println("End");
 	}

@@ -14,7 +14,6 @@ public class WikiData {
         this.datamap = new DataMap(allLinks);
     }
 
-
     public void info() {
         System.out.println("Размер карты ссылок: " + datamap.size());
         System.out.println("Размер списка всех ссылок: " + allLinks.size());
@@ -25,39 +24,17 @@ public class WikiData {
     }
 
     public void search (int num, String from, String to) {
-        @SuppressWarnings("unchecked")
-        Map<Integer, Integer> map[] = new Map[num];
+        Node[] nodes = new Node[num];
         int fromId = allLinks.getInteger(from);
         int toId = allLinks.getInteger(to);
+        
         int resultStage = -1;
-        // инициализация первой ссылки
-        map[0] = new HashMap<>();
-        Set<Integer> tmp = datamap.get(fromId);
-        for (Integer integer : tmp) {
-            map[0].put(integer, fromId);
-            if (integer.equals(toId)) {
-                resultStage = 0;
-                break;
-            }
-        }
-        // заполнение последующих итераций
-        for (int i = 1; i < num && resultStage == -1; i++) {
-            map[i] = new HashMap<>();
-            // для каждой ссылки предыдущей ступени
-            for (Map.Entry<Integer, Integer> entry : map[i - 1].entrySet()) {
-                int fromStage = entry.getKey();
-                // формируем текущую ступень
-                tmp = datamap.get(fromStage);
-                for (Integer integer : tmp) {
-                    map[i].put(integer, fromStage);
-                    if (integer.equals(toId)) {
-                        resultStage = i;
-                        break;
-                    }
-                }
-                if (resultStage != -1) {
-                    break;
-                }
+        for (int i = 0; i < num && resultStage == -1; i++) {
+            nodes[i] = new Node(i);
+            if (i == 0) {
+                resultStage = nodes[i].fillNodeFrom(fromId, toId);
+            } else {
+                resultStage = nodes[i].fiilNode(nodes[i - 1], toId);
             }
         }
         // вывод результата
@@ -67,10 +44,42 @@ public class WikiData {
         int prevLink = toId;
         System.out.println("Stage " + (resultStage + 1) + " | " + allLinks.getString(toId));
         for (int i = resultStage; i > 0; i--) {
-            prevLink = map[i].get(prevLink);
+            prevLink = nodes[i].map.get(prevLink);
             System.out.println("Stage " + (i) + " | " + allLinks.getString(prevLink));
         }
         System.out.println("Start  " + " | " + allLinks.getString(fromId));
     }
 
+    private class Node {
+        private int stage;
+        private Map<Integer, Integer> map;
+
+        public Node(int stage) {
+            this.stage = stage;
+            map = new HashMap<>();
+        }
+
+        private int fillNodeFrom(int fromId, int toId) {
+            Set<Integer> setLinksToOperate = datamap.get(fromId);
+            for (Integer link : setLinksToOperate) {
+                map.put(link, fromId);
+                if (link.equals(toId)) {
+                    return this.stage;
+                }
+            }
+            return -1;
+        }
+
+        private int fiilNode(Node nodePrev, int toId) {
+            int resultStage = -1;
+            for (Map.Entry<Integer, Integer> entry : nodePrev.map.entrySet()) {
+                int fromStage = entry.getKey();
+                resultStage = fillNodeFrom(fromStage, toId);
+                if (resultStage != -1) {
+                    break;
+                }
+            }
+            return resultStage;
+        }
+    }
 }
